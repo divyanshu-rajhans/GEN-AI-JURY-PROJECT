@@ -1,178 +1,126 @@
-
-from flask import Flask, render_template, request
-import numpy as np
-import pickle
 import os
+import pickle
+import numpy as np
+import pandas as pd
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-# --------------------------------------------------
-# 1. LOAD TRAINED MODEL AND PREPROCESSING OBJECTS
-# --------------------------------------------------
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def load_pickle(filename):
     path = os.path.join(BASE_DIR, filename)
-
     if not os.path.isfile(path):
         raise FileNotFoundError(
-            f"Required model artifact '{filename}' was not found in "
-            f"the project directory."
+            f"Required artifact '{filename}' not found. Run train_model.py first."
         )
-
     with open(path, "rb") as file:
         return pickle.load(file)
 
-model = load_pickle("diabetes_model.pkl")
-imputer = load_pickle("imputer.pkl")
-scaler = load_pickle("scaler.pkl")
 
+preprocessor = load_pickle("preprocessor.pkl")
+model = load_pickle("voting_model.pkl")
 
-# --------------------------------------------------
-# 2. FEATURE NAMES AND VALIDATION LIMITS
-# --------------------------------------------------
+NUMERIC_LIMITS = {
+    "age": (0.1, 120),
+    "bmi": (10.0, 100.0),
+    "HbA1c_level": (3.0, 15.0),
+    "blood_glucose_level": (50.0, 400.0),
+}
 
-FEATURES = [
-    "Pregnancies",
-    "Glucose",
-    "BloodPressure",
-    "SkinThickness",
-    "Insulin",
-    "BMI",
-    "DiabetesPedigree",
-    "Age"
-]
+BINARY_FIELDS = ["hypertension", "heart_disease"]
 
-# These are broad input-validation limits, not
-# clinical diagnostic thresholds.
-LIMITS = {
-    "Pregnancies": (0, 30),
-    "Glucose": (1, 500),
-    "BloodPressure": (1, 250),
-    "SkinThickness": (1, 150),
-    "Insulin": (1, 3000),
-    "BMI": (0.1, 100),
-    "DiabetesPedigree": (0.001, 5),
-    "Age": (1, 120)
+CATEGORICAL_OPTIONS = {
+    "gender": ["Female", "Male", "Other"],
+    "smoking_history": ["never", "No Info", "current", "former", "ever", "not current"],
 }
 
 
-# --------------------------------------------------
-# 3. HOME PAGE
-# --------------------------------------------------
-
 @app.route("/", methods=["GET", "POST"])
 def index():
-
     prediction = None
     error = None
     form_data = {}
 
     if request.method == "POST":
-
         try:
-            values = []
+            record = {}
 
-            # Read and validate user inputs
-            for feature in FEATURES:
-
-                raw_value = request.form.get(feature, "").strip()
+            for field, (minimum, maximum) in NUMERIC_LIMITS.items():
+                raw_value = request.form.get(field, "").strip()
+                form_data[field] = raw_value
 
                 if not raw_value:
-                    raise ValueError(
-                        f"Please enter a value for {feature}."
-                    )
+                    raise ValueError(f"Please enter a value for {field}.")
 
                 value = float(raw_value)
-
                 if not np.isfinite(value):
-                    raise ValueError(
-                        f"{feature} must be a valid number."
-                    )
-
-                minimum, maximum = LIMITS[feature]
-
+                    raise ValueError(f"{field} must be a valid number.")
                 if not minimum <= value <= maximum:
-                    raise ValueError(
-                        f"{feature} must be between "
-                        f"{minimum} and {maximum}."
-                    )
+                    raise ValueError(f"{field} must be between {minimum} and {maximum}.")
 
-                # Store values to repopulate the form
-                form_data[feature] = raw_value
-                values.append(value)
+                record[field] = value
 
-            # Convert input to a 2D NumPy array
-            input_data = np.array(values).reshape(1, -1)
+            for field in BINARY_FIELDS:
+                raw_value = request.form.get(field, "").strip()
+                form_data[field] = raw_value
 
-            # Match training preprocessing:
-            # 1. Replace selected zeros with missing values
-            zero_columns = [
-                "Glucose",
-                "BloodPressure",
-                "SkinThickness",
-                "Insulin",
-                "BMI"
-            ]
+                if raw_value not in ("0", "1"):
+                    raise ValueError(f"Please select a valid option for {field}.")
 
-            for column in zero_columns:
-                index = FEATURES.index(column)
+                record[field] = int(raw_value)
 
-                if input_data[0, index] == 0:
-                    input_data[0, index] = np.nan
+            for field, allowed in CATEGORICAL_OPTIONS.items():
+                raw_value = request.form.get(field, "").strip()
+                form_data[field] = raw_value
 
-            # 2. Apply the fitted imputer
-            input_data = imputer.transform(input_data)
+                if raw_value not in allowed:
+                    raise ValueError(f"Please select a valid option for {field}.")
 
-            # 3. Apply the fitted scaler
-            input_data = scaler.transform(input_data)
+                record[field] = raw_value
 
-            # 4. Predict the outcome
-            result = int(model.predict(input_data)[0])
+            input_df = pd.DataFrame([record])
+            input_processed = preprocessor.transform(input_df)
+
+            result = int(model.predict(input_processed)[0])
+            probability = float(model.predict_proba(input_processed)[0][1]) * 100
 
             if result == 1:
                 prediction = {
-                    "label": "Positive Prediction",
+                    "label": "High Risk (Positive Prediction)",
+                    "probability": f"{probability:.1f}%",
                     "message": (
-                        "The model predicts the positive class "
-                        "for diabetes in this record."
+                        "The Soft Voting Ensemble predicts a high likelihood of diabetes. "
+                        "A clinical follow-up test is recommended."
                     ),
-                    "status": "positive"
+                    "status": "positive",
                 }
             else:
                 prediction = {
-                    "label": "Negative Prediction",
+                    "label": "Low Risk (Negative Prediction)",
+                    "probability": f"{probability:.1f}%",
                     "message": (
-                        "The model predicts the negative class "
-                        "for diabetes in this record."
+                        "The Soft Voting Ensemble predicts a low likelihood of diabetes "
+                        "based on the provided indicators."
                     ),
-                    "status": "negative"
+                    "status": "negative",
                 }
 
         except ValueError as exc:
             error = str(exc)
-
         except Exception:
             app.logger.exception("Prediction failed")
-
-            error = (
-                "The prediction could not be completed. "
-                "Please check the server configuration."
-            )
+            error = "The prediction could not be completed. Please check the server logs."
 
     return render_template(
         "index.html",
-        features=FEATURES,
         prediction=prediction,
         error=error,
-        form_data=form_data
+        form_data=form_data,
+        categorical_options=CATEGORICAL_OPTIONS,
     )
 
-
-# --------------------------------------------------
-# 4. RUN FLASK APPLICATION
-# --------------------------------------------------
 
 if __name__ == "__main__":
     app.run(debug=True)
