@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
@@ -119,7 +119,7 @@ models = {
 results = []
 
 print("\n" + "=" * 60)
-print("TRAINING & EVALUATING MODELS (FOCUS: RECALL)")
+print("TRAINING & TESTING MODELS (FOCUS: RECALL)")
 print("=" * 60)
 
 for name, clf in models.items():
@@ -143,16 +143,30 @@ for name, clf in models.items():
     )
 
     if name == "Soft Voting Ensemble":
-        print("\n--- Soft Voting Ensemble Detailed Report ---")
+        print("\n--- Soft Voting Ensemble Detailed Test Report ---")
         print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
         print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
 results_df = pd.DataFrame(results)
 print("\n" + "=" * 60)
-print("MODEL COMPARISON TABLE")
+print("MODEL COMPARISON TABLE (TEST SET)")
 print("=" * 60)
 print(results_df.to_string(index=False))
 
+# 5-Fold Stratified Cross-Validation on Training Set
+print("\n" + "=" * 60)
+print("5-FOLD STRATIFIED CROSS-VALIDATION (SOFT VOTING ENSEMBLE)")
+print("=" * 60)
+
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+cv_recall = cross_val_score(
+    voting_model, X_train_processed, y_train, cv=cv, scoring="recall", n_jobs=-1
+)
+
+print("Fold Recall Scores:", np.round(cv_recall, 4))
+print(f"Mean CV Recall:     {cv_recall.mean():.4f} (+/- {cv_recall.std():.4f})")
+
+# Feature Importance Chart (Averaged from Random Forest & XGBoost)
 feature_names = preprocessor.get_feature_names_out()
 clean_feature_names = [
     f.replace("num__", "").replace("cat__", "") for f in feature_names
