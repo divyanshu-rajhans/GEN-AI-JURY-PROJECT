@@ -1,0 +1,278 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Diabetes Prediction System</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <div class="page-container">
+
+        <header class="header">
+            <div class="brand">
+                <span class="brand-icon">+</span>
+                <span>HealthPredict</span>
+            </div>
+        </header>
+
+
+        <main class="main-content">
+
+            <section class="hero">
+                <p class="eyebrow">PREDICTIVE HEALTH ANALYTICS</p>
+
+                <h1>Diabetes Prediction</h1>
+
+                <p class="subtitle">
+                    Enter the measurements below to generate a
+                    machine-learning prediction based on the
+                    Random Forest classification model.
+                </p>
+            </section>
+
+
+            {% if error %}
+                <div class="alert error" role="alert">
+                    <strong>Input Error</strong>
+                    <p>{{ error }}</p>
+                </div>
+            {% endif %}
+
+
+            {% if prediction %}
+
+                <section
+                    class="result-card {{ prediction.status }}"
+                    aria-live="polite"
+                >
+                    <div class="result-icon">
+                        {% if prediction.status == "positive" %}
+                            !
+                        {% else %}
+                            ✓
+                        {% endif %}
+                    </div>
+
+                    <div class="result-content">
+                        <p class="result-eyebrow">
+                            MODEL PREDICTION
+                        </p>
+
+                        <h2>
+                            {% if prediction.status == "positive" %}
+                                {{ prediction.label }} : Diabetic Patient
+                            {% else %}
+                                {{ prediction.label }} : Non Diabetic Patient
+                            {% endif %}
+                        </h2>
+
+                        <p>{{ prediction.message }}</p>
+                        
+                    </div>
+                </section>
+
+            {% endif %}
+
+
+            <section class="form-card">
+
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">PATIENT INFORMATION</p>
+                        <h2>Enter Health Measurements</h2>
+                    </div>
+
+                    <span class="required-note">
+                        All fields required
+                    </span>
+                </div>
+
+
+                <form method="POST" action="/">
+
+                    <div class="form-grid">
+
+                        <div class="form-group">
+                            <label for="Pregnancies">
+                                Number of Pregnancies
+                            </label>
+
+                            <input
+                                type="number"
+                                id="Pregnancies"
+                                name="Pregnancies"
+                                min="0"
+                                max="30"
+                                step="1"
+                                placeholder="e.g. 2"
+                                value="{{ form_data.get('Pregnancies', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="Glucose">
+                                Glucose Level
+                            </label>
+
+                            <input
+                                type="number"
+                                id="Glucose"
+                                name="Glucose"
+                                min="1"
+                                max="500"
+                                step="any"
+                                placeholder="e.g. 120"
+                                value="{{ form_data.get('Glucose', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="BloodPressure">
+                                Blood Pressure
+                            </label>
+
+                            <input
+                                type="number"
+                                id="BloodPressure"
+                                name="BloodPressure"
+                                min="1"
+                                max="250"
+                                step="any"
+                                placeholder="e.g. 72"
+                                value="{{ form_data.get('BloodPressure', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="SkinThickness">
+                                Skin Thickness
+                            </label>
+
+                            <input
+                                type="number"
+                                id="SkinThickness"
+                                name="SkinThickness"
+                                min="1"
+                                max="150"
+                                step="any"
+                                placeholder="e.g. 20"
+                                value="{{ form_data.get('SkinThickness', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="Insulin">
+                                Insulin Level
+                            </label>
+
+                            <input
+                                type="number"
+                                id="Insulin"
+                                name="Insulin"
+                                min="1"
+                                max="3000"
+                                step="any"
+                                placeholder="e.g. 80"
+                                value="{{ form_data.get('Insulin', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="BMI">
+                                Body Mass Index (BMI)
+                            </label>
+
+                            <input
+                                type="number"
+                                id="BMI"
+                                name="BMI"
+                                min="0.1"
+                                max="100"
+                                step="any"
+                                placeholder="e.g. 28.5"
+                                value="{{ form_data.get('BMI', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="DiabetesPedigree">
+                                Diabetes Pedigree Function
+                            </label>
+
+                            <input
+                                type="number"
+                                id="DiabetesPedigree"
+                                name="DiabetesPedigree"
+                                min="0.001"
+                                max="5"
+                                step="any"
+                                placeholder="e.g. 0.45"
+                                value="{{ form_data.get('DiabetesPedigree', '') }}"
+                                required
+                            >
+                        </div>
+
+
+                        <div class="form-group">
+                            <label for="Age">
+                                Age (years)
+                            </label>
+
+                            <input
+                                type="number"
+                                id="Age"
+                                name="Age"
+                                min="1"
+                                max="120"
+                                step="1"
+                                placeholder="e.g. 35"
+                                value="{{ form_data.get('Age', '') }}"
+                                required
+                            >
+                        </div>
+
+                    </div>
+
+
+                    <button type="submit" class="predict-button">
+                        Predict Diabetes Outcome
+                        <span aria-hidden="true">→</span>
+                    </button>
+
+                    <p class="form-footnote">
+                        Please enter measurements in the units and
+                        format expected by the training dataset.
+                    </p>
+
+                </form>
+
+            </section>
+
+
+        </main>
+    </div>
+
+</body>
+</html>
+```
